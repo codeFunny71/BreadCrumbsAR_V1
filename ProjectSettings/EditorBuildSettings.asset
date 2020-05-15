@@ -8,4 +8,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/ARView.unity
     guid: b3efd9365b2a1440faaece141b024e6f
+  - enabled: 1
+    path: Assets/Scenes/MapView.unity
+    guid: 41eba51fc4841dd4aa16a48596f1473a
   m_configObjects: {}
