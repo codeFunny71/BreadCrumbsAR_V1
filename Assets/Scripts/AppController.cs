@@ -1,7 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using Google.XR.ARCoreExtensions;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 using UnityEngine.XR.ARFoundation;
 
@@ -89,6 +91,8 @@ public class AppController : MonoBehaviour
 
                 m_CloudAnchorId = m_CloudAnchor.cloudAnchorId;
                 m_CloudAnchor = null;
+                
+                StartCoroutine(saveAnchor(m_CloudAnchorId, 1.0, 1.0));
 
                 m_AppMode = AppMode.TouchToResolveCloudAnchor;
             }
@@ -146,6 +150,25 @@ public class AppController : MonoBehaviour
     void Start()
     {
         InputField.onEndEdit.AddListener(OnInputEndEdit);
+    }
+    
+    IEnumerator saveAnchor(string anchorId, double lattitude, double longitude )
+    {
+        string data = "{\"id\":\"" + anchorId + "\",\"lat\":\"" + lattitude + "\",\"lon\":\"" + longitude+ "\"}";
+        using (UnityWebRequest www = UnityWebRequest.Put("https://breadcrumbsar.herokuapp.com/saveAnchor", data))
+        {
+            www.SetRequestHeader("Content-Type", "application/json");
+            yield return www.SendWebRequest();
+
+            if (www.isNetworkError || www.isHttpError)
+            {
+                Debug.Log(www.error);
+            }
+            else
+            {
+                Debug.Log("Upload complete!");
+            }
+        }
     }
 
     private void OnInputEndEdit(string text)
