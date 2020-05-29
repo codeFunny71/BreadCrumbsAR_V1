@@ -15,6 +15,7 @@ public class AppController : MonoBehaviour
     public ARRaycastManager RaycastManager;
     public InputField InputField;
     public Text OutputText;
+    
 
     private enum AppMode
     {
@@ -92,7 +93,7 @@ public class AppController : MonoBehaviour
                 m_CloudAnchorId = m_CloudAnchor.cloudAnchorId;
                 m_CloudAnchor = null;
                 
-                StartCoroutine(saveAnchor(m_CloudAnchorId, 1.0, 1.0));
+                StartCoroutine(saveAnchor(m_CloudAnchorId, GPS.Instance.latitude, GPS.Instance.longitude));
 
                 m_AppMode = AppMode.TouchToResolveCloudAnchor;
             }
