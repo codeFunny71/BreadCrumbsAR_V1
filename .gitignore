@@ -1,5 +1,6 @@
 .DS_Store
 Assets/MapBox*
+Assets/JsonDotNet*
 Assets/ProjectSettings/ARCoreExtensionsProjectSettings.json
 
 # This .gitignore file should be placed at the root of your Unity project directory
@@ -50,6 +51,7 @@ ExportedObj/
 *.mdb
 *.opendb
 *.VC.db
+.idea
 
 # Unity3D generated meta files
 *.pidb.meta
