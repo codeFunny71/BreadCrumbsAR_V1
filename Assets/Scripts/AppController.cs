@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using Google.XR.ARCoreExtensions;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Networking;
@@ -15,7 +16,7 @@ public class AppController : MonoBehaviour
     public ARRaycastManager RaycastManager;
     public InputField InputField;
     public Text OutputText;
-    
+
 
     private enum AppMode
     {
@@ -26,15 +27,20 @@ public class AppController : MonoBehaviour
         WaitingForHostedAnchor,
 
         // Wait for user to tap screen to begin resolving the point.
-        TouchToResolveCloudAnchor,
+        ResolveCloudAnchor,
 
         // Poll resolving point state until it is ready to use.
         WaitingForResolvedAnchor,
+
+        //check if the queue is filled yet
+        WaitingForQueue
     }
 
     private AppMode m_AppMode = AppMode.TouchToHostCloudAnchor;
     private ARCloudAnchor m_CloudAnchor;
     private string m_CloudAnchorId;
+    private Queue<string> cloudAnchorIdQueue = new Queue<string>();
+    private bool isQueueReady = false;
 
     void Update()
     {
@@ -45,7 +51,7 @@ public class AppController : MonoBehaviour
             if (Input.touchCount >= 1
                 && Input.GetTouch(0).phase == TouchPhase.Began
                 && !EventSystem.current.IsPointerOverGameObject(
-                        Input.GetTouch(0).fingerId))
+                    Input.GetTouch(0).fingerId))
             {
                 List<ARRaycastHit> hitResults = new List<ARRaycastHit>();
                 RaycastManager.Raycast(Input.GetTouch(0).position, hitResults);
@@ -84,37 +90,36 @@ public class AppController : MonoBehaviour
             if (cloudAnchorState == CloudAnchorState.Success)
             {
                 GameObject cloudAnchor = Instantiate(
-                                             HostedPointPrefab,
-                                             Vector3.zero,
-                                             Quaternion.identity);
+                    HostedPointPrefab,
+                    Vector3.zero,
+                    Quaternion.identity);
                 cloudAnchor.transform.SetParent(
                     m_CloudAnchor.transform, false);
 
-                m_CloudAnchorId = m_CloudAnchor.cloudAnchorId;
+                cloudAnchorIdQueue.Enqueue(m_CloudAnchor.cloudAnchorId);
+                StartCoroutine(saveAnchor(m_CloudAnchor.cloudAnchorId, GPS.Instance.latitude, GPS.Instance.longitude));
                 m_CloudAnchor = null;
-                
-                StartCoroutine(saveAnchor(m_CloudAnchorId, GPS.Instance.latitude, GPS.Instance.longitude));
 
-                m_AppMode = AppMode.TouchToResolveCloudAnchor;
+                m_AppMode = AppMode.ResolveCloudAnchor;
             }
         }
-        else if (m_AppMode == AppMode.TouchToResolveCloudAnchor)
+        else if (m_AppMode == AppMode.ResolveCloudAnchor)
         {
-            OutputText.text = m_CloudAnchorId;
-
-            if (Input.touchCount >= 1
-                && Input.GetTouch(0).phase == TouchPhase.Began
-                && !EventSystem.current.IsPointerOverGameObject(
-                        Input.GetTouch(0).fingerId))
+            OutputText.text = m_AppMode.ToString();
+            //if there is a breadcrumb left to load
+            if (cloudAnchorIdQueue.Count >= 1)
             {
+                m_CloudAnchorId = cloudAnchorIdQueue.Dequeue();
+                OutputText.text = m_CloudAnchorId;
                 m_CloudAnchor =
                     AnchorManager.ResolveCloudAnchorId(
                         m_CloudAnchorId);
+
                 if (m_CloudAnchor == null)
                 {
                     OutputText.text = "Resolve Failed!";
                     m_CloudAnchorId = string.Empty;
-                    m_AppMode = AppMode.TouchToHostCloudAnchor;
+                    //m_AppMode = AppMode.TouchToHostCloudAnchor;
                     return;
                 }
 
@@ -122,6 +127,11 @@ public class AppController : MonoBehaviour
 
                 // Wait for the reference point to be ready.
                 m_AppMode = AppMode.WaitingForResolvedAnchor;
+            }
+            else
+            {
+                //if the queue is empty, return to placing anchors
+                m_AppMode = AppMode.TouchToHostCloudAnchor;
             }
         }
         else if (m_AppMode == AppMode.WaitingForResolvedAnchor)
@@ -135,27 +145,58 @@ public class AppController : MonoBehaviour
             if (cloudAnchorState == CloudAnchorState.Success)
             {
                 GameObject cloudAnchor = Instantiate(
-                                             ResolvedPointPrefab,
-                                             Vector3.zero,
-                                             Quaternion.identity);
+                    ResolvedPointPrefab,
+                    Vector3.zero,
+                    Quaternion.identity);
                 cloudAnchor.transform.SetParent(
                     m_CloudAnchor.transform, false);
 
                 m_CloudAnchor = null;
 
-                m_AppMode = AppMode.TouchToHostCloudAnchor;
+                if (cloudAnchorIdQueue.Count <= 0)
+                {
+                    //if there are no more anchors to process, go back to placing anchors
+                    m_AppMode = AppMode.TouchToHostCloudAnchor;
+                }
+                else
+                {
+                    //if there are more anchors to resolve, do that.
+                    m_AppMode = AppMode.ResolveCloudAnchor;
+                }
+            }
+        }
+        else if (m_AppMode == AppMode.WaitingForQueue)
+        {
+            if (isQueueReady)
+            {
+                m_AppMode = AppMode.ResolveCloudAnchor;
+                return;
+            }
+            else if (GPS.Instance.latitude != 0)
+            {
+                StartCoroutine(PopulateAnchorQueue(GPS.Instance.latitude, GPS.Instance.longitude));
             }
         }
     }
 
     void Start()
     {
-        InputField.onEndEdit.AddListener(OnInputEndEdit);
+        //InputField.onEndEdit.AddListener(OnInputEndEdit);
+        m_AppMode = AppMode.WaitingForQueue;
     }
-    
-    IEnumerator saveAnchor(string anchorId, double lattitude, double longitude )
+
+    void HostAnchor()
     {
-        string data = "{\"id\":\"" + anchorId + "\",\"lat\":\"" + lattitude + "\",\"lon\":\"" + longitude+ "\"}";
+    }
+
+    void ResolveAnchor(string anchorId)
+    {
+    }
+
+    IEnumerator saveAnchor(string anchorId, double latitude, double longitude)
+    {
+        Debug.Log("Started saveAnchor coroutine");
+        string data = "{\"id\":\"" + anchorId + "\",\"lat\":\"" + latitude + "\",\"lon\":\"" + longitude + "\"}";
         using (UnityWebRequest www = UnityWebRequest.Put("https://breadcrumbsar.herokuapp.com/saveAnchor", data))
         {
             www.SetRequestHeader("Content-Type", "application/json");
@@ -168,6 +209,45 @@ public class AppController : MonoBehaviour
             else
             {
                 Debug.Log("Upload complete!");
+            }
+        }
+    }
+
+    IEnumerator PopulateAnchorQueue(double latitude, double longitude)
+    {
+        string data = "?lat=" + latitude + "&long=" + longitude;
+        using (UnityWebRequest www = UnityWebRequest.Get("https://breadcrumbsar.herokuapp.com/getAnchors" + data))
+        {
+            //www.SetRequestHeader("Content-Type", "application/json");
+            yield return www.SendWebRequest();
+            string responseString = www.downloadHandler.text;
+            Debug.Log(responseString);
+
+            AnchorResponse response = JsonConvert.DeserializeObject<AnchorResponse>(responseString);
+            AnchorList[] anchorList = response.AnchorList;
+            if (anchorList.Length == 0)
+            {
+                m_AppMode = AppMode.TouchToHostCloudAnchor;
+                Debug.Log("did not find any anchors");
+                yield break;
+            }
+
+            for (var i = 0; i < anchorList.Length; i++)
+            {
+                cloudAnchorIdQueue.Enqueue(anchorList[i].AnchorId);
+                Debug.Log(anchorList[i].AnchorId);
+            }
+
+            isQueueReady = true;
+
+            if (www.isNetworkError || www.isHttpError)
+            {
+                Debug.Log(www.error);
+            }
+            else
+            {
+                Debug.Log("Download complete!");
+                yield break;
             }
         }
     }
