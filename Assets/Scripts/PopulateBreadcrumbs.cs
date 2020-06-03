@@ -13,56 +13,81 @@ using UnityEngine.UI;
 
 public class PopulateBreadcrumbs : MonoBehaviour
 {
-    [SerializeField]
-    AbstractMap _map;
+    [SerializeField] AbstractMap _map;
 
     [SerializeField]
     //[Geocode]
     string[] _locationStrings;
+
     Vector2d[] _locations;
 
-    [SerializeField]
-    float _spawnScale = 100f;
+    [SerializeField] float _spawnScale = 100f;
 
-    [SerializeField]
-    GameObject _markerPrefab;
+    [SerializeField] GameObject _markerPrefab;
 
     List<GameObject> _spawnedObjects;
 
-    private void Awake()
-    {
-        StartCoroutine(GetAnchors(GPS.Instance.latitude, GPS.Instance.longitude));
-    }
+    private AppMode _mode;
+
+    private bool isListReady = false;
 
     void Start()
     {
-        _locations = new Vector2d[_locationStrings.Length];
-        _spawnedObjects = new List<GameObject>();
-        Debug.Log("_locationStrings array: "+_locationStrings.ToString());
-        for (int i = 0; i < _locationStrings.Length; i++)
-        {
-            var locationString = _locationStrings[i];
-            _locations[i] = Conversions.StringToLatLon(locationString);
-            var instance = Instantiate(_markerPrefab);
-            instance.transform.localPosition = _map.GeoToWorldPosition(_locations[i], true);
-            instance.transform.localScale = new Vector3(_spawnScale, _spawnScale, _spawnScale);
-            _spawnedObjects.Add(instance);
-        }
+        _mode = AppMode.WaitingForGps;
+    }
+
+    private enum AppMode
+    {
+        WaitingForGps,
+        PopulatingMarkers,
+        WaitingForMarkerChanges
     }
 
     void Update()
     {
-        int count = _spawnedObjects.Count;
-        for (int i = 0; i < count; i++)
+        if (_mode == AppMode.WaitingForGps)
         {
-            var spawnedObject = _spawnedObjects[i];
-            var location = _locations[i];
-            spawnedObject.transform.localPosition = _map.GeoToWorldPosition(location, true);
-            spawnedObject.transform.localScale = new Vector3(_spawnScale, _spawnScale, _spawnScale);
+            if (GPS.Instance.latitude != 0)
+            {
+                StartCoroutine(GetAnchors(GPS.Instance.latitude, GPS.Instance.longitude));
+                _mode = AppMode.PopulatingMarkers;
+            }
+        }
+        else if (_mode == AppMode.PopulatingMarkers)
+        {
+            if (isListReady)
+            {
+                _locations = new Vector2d[_locationStrings.Length];
+                _spawnedObjects = new List<GameObject>();
+                Debug.Log("_locationStrings array: " + _locationStrings.ToString());
+                for (int i = 0; i < _locationStrings.Length; i++)
+                {
+                    var locationString = _locationStrings[i];
+                    _locations[i] = Conversions.StringToLatLon(locationString);
+                    var instance = Instantiate(_markerPrefab);
+                    instance.transform.localPosition = _map.GeoToWorldPosition(_locations[i], true);
+                    instance.transform.localScale = new Vector3(_spawnScale, _spawnScale, _spawnScale);
+                    _spawnedObjects.Add(instance);
+                }
+
+                _mode = AppMode.WaitingForMarkerChanges;
+            }
+            
+        }
+        else if (_mode == AppMode.WaitingForMarkerChanges)
+        {
+            int count = _spawnedObjects.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var spawnedObject = _spawnedObjects[i];
+                var location = _locations[i];
+                spawnedObject.transform.localPosition = _map.GeoToWorldPosition(location, true);
+                spawnedObject.transform.localScale = new Vector3(_spawnScale, _spawnScale, _spawnScale);
+            }
         }
     }
-    
-    IEnumerator GetAnchors(double latitude, double longitude )
+
+    IEnumerator GetAnchors(double latitude, double longitude)
     {
         string data = "?lat=" + latitude + "&long=" + longitude;
         using (UnityWebRequest www = UnityWebRequest.Get("https://breadcrumbsar.herokuapp.com/getAnchors" + data))
@@ -79,7 +104,7 @@ public class PopulateBreadcrumbs : MonoBehaviour
                 _locationStrings[i] = anchorList[i].Latitude + ", " + anchorList[i].Longitude;
                 Debug.Log(_locationStrings[i]);
             }
-
+            
             if (www.isNetworkError || www.isHttpError)
             {
                 Debug.Log(www.error);
@@ -87,6 +112,7 @@ public class PopulateBreadcrumbs : MonoBehaviour
             else
             {
                 Debug.Log("Download complete!");
+                isListReady = true;
                 yield break;
             }
         }
