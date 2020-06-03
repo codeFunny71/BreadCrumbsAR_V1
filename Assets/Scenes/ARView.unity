@@ -655,7 +655,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   HostedPointPrefab: {fileID: 1097081720553309242, guid: a5797a1d1828d4eabba5253882a183b7,
     type: 3}
-  ResolvedPointPrefab: {fileID: 1961247485449346431, guid: 31bfc034c9b00485682f1b48ac4277ef,
+  ResolvedPointPrefab: {fileID: 8715415758569745859, guid: bb50acb73c5fcde489f9b6859dd23902,
     type: 3}
   AnchorManager: {fileID: 1748503502}
   RaycastManager: {fileID: 1748503499}

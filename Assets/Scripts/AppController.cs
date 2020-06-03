@@ -41,6 +41,7 @@ public class AppController : MonoBehaviour
     private string m_CloudAnchorId;
     private Queue<string> cloudAnchorIdQueue = new Queue<string>();
     private bool isQueueReady = false;
+    private bool isQueueStarted = false;
 
     void Update()
     {
@@ -98,6 +99,7 @@ public class AppController : MonoBehaviour
 
                 cloudAnchorIdQueue.Enqueue(m_CloudAnchor.cloudAnchorId);
                 StartCoroutine(saveAnchor(m_CloudAnchor.cloudAnchorId, GPS.Instance.latitude, GPS.Instance.longitude));
+                createMessage(m_CloudAnchor.cloudAnchorId);
                 m_CloudAnchor = null;
 
                 m_AppMode = AppMode.ResolveCloudAnchor;
@@ -111,9 +113,7 @@ public class AppController : MonoBehaviour
             {
                 m_CloudAnchorId = cloudAnchorIdQueue.Dequeue();
                 OutputText.text = m_CloudAnchorId;
-                m_CloudAnchor =
-                    AnchorManager.ResolveCloudAnchorId(
-                        m_CloudAnchorId);
+                m_CloudAnchor = AnchorManager.ResolveCloudAnchorId(m_CloudAnchorId);
 
                 if (m_CloudAnchor == null)
                 {
@@ -151,6 +151,8 @@ public class AppController : MonoBehaviour
                 cloudAnchor.transform.SetParent(
                     m_CloudAnchor.transform, false);
 
+                StartCoroutine(getMessage(m_CloudAnchor.cloudAnchorId, cloudAnchor.GetComponentInChildren<Text>()));
+
                 m_CloudAnchor = null;
 
                 if (cloudAnchorIdQueue.Count <= 0)
@@ -172,25 +174,18 @@ public class AppController : MonoBehaviour
                 m_AppMode = AppMode.ResolveCloudAnchor;
                 return;
             }
-            else if (GPS.Instance.latitude != 0)
+            //check if the gps has initialized and the populate coroutine has not started
+            else if (!isQueueStarted && GPS.Instance.latitude != 0)
             {
                 StartCoroutine(PopulateAnchorQueue(GPS.Instance.latitude, GPS.Instance.longitude));
+                isQueueStarted = true;
             }
         }
     }
 
     void Start()
     {
-        //InputField.onEndEdit.AddListener(OnInputEndEdit);
         m_AppMode = AppMode.WaitingForQueue;
-    }
-
-    void HostAnchor()
-    {
-    }
-
-    void ResolveAnchor(string anchorId)
-    {
     }
 
     IEnumerator saveAnchor(string anchorId, double latitude, double longitude)
@@ -209,6 +204,57 @@ public class AppController : MonoBehaviour
             else
             {
                 Debug.Log("Upload complete!");
+            }
+        }
+    }
+    
+    IEnumerator saveMessage(string anchorId, string message)
+    {
+        Debug.Log("Started saveMessage coroutine");
+        string data = "{\"anchorId\":\"" + anchorId + "\",\"message\":\"" + message + "\"}";
+        using (UnityWebRequest www = UnityWebRequest.Put("https://breadcrumbsar.herokuapp.com/saveMessage", data))
+        {
+            www.SetRequestHeader("Content-Type", "application/json");
+            yield return www.SendWebRequest();
+
+            if (www.isNetworkError || www.isHttpError)
+            {
+                Debug.Log(www.error);
+            }
+            else
+            {
+                Debug.Log("Upload complete!");
+            }
+        }
+    }
+    
+    IEnumerator getMessage(string anchorId, Text text)
+    {
+        string data = "?anchorId=" + anchorId;
+        using (UnityWebRequest www = UnityWebRequest.Get("https://breadcrumbsar.herokuapp.com/getMessage" + data))
+        {
+            //www.SetRequestHeader("Content-Type", "application/json");
+            yield return www.SendWebRequest();
+            string responseString = www.downloadHandler.text;
+            Debug.Log(responseString);
+
+            MessageResponse response = JsonConvert.DeserializeObject<MessageResponse>(responseString);
+            if (response.Message.Equals(""))
+            {
+                Debug.Log("No message found");
+                yield break;
+            }
+
+            text.text = response.Message;
+
+            if (www.isNetworkError || www.isHttpError)
+            {
+                Debug.Log(www.error);
+            }
+            else
+            {
+                Debug.Log("Download complete!");
+                yield break;
             }
         }
     }
@@ -252,20 +298,16 @@ public class AppController : MonoBehaviour
         }
     }
 
-    private void OnInputEndEdit(string text)
+    private void createMessage(string anchorId)
     {
-        m_CloudAnchorId = string.Empty;
+        var text = InputField.text;
+        InputField.text = "";
 
-        m_CloudAnchor =
-            AnchorManager.ResolveCloudAnchorId(text);
-        if (m_CloudAnchor == null)
+        if (text.Equals(""))
         {
-            OutputText.text = "Resolve Failed!";
-            m_AppMode = AppMode.TouchToHostCloudAnchor;
             return;
         }
 
-        // Wait for the reference point to be ready.
-        m_AppMode = AppMode.WaitingForResolvedAnchor;
+        StartCoroutine(saveMessage(anchorId, text));
     }
 }
