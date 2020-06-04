@@ -262,7 +262,7 @@ public class AppController : MonoBehaviour
     IEnumerator PopulateAnchorQueue(double latitude, double longitude)
     {
         string data = "?lat=" + latitude + "&long=" + longitude;
-        using (UnityWebRequest www = UnityWebRequest.Get("https://breadcrumbsar.herokuapp.com/getAnchors" + data))
+        using (UnityWebRequest www = UnityWebRequest.Get("https://breadcrumbsar.herokuapp.com/getARAnchors" + data))
         {
             //www.SetRequestHeader("Content-Type", "application/json");
             yield return www.SendWebRequest();

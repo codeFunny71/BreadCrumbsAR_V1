@@ -90,7 +90,7 @@ public class PopulateBreadcrumbs : MonoBehaviour
     IEnumerator GetAnchors(double latitude, double longitude)
     {
         string data = "?lat=" + latitude + "&long=" + longitude;
-        using (UnityWebRequest www = UnityWebRequest.Get("https://breadcrumbsar.herokuapp.com/getAnchors" + data))
+        using (UnityWebRequest www = UnityWebRequest.Get("https://breadcrumbsar.herokuapp.com/getMapAnchors" + data))
         {
             //www.SetRequestHeader("Content-Type", "application/json");
             yield return www.SendWebRequest();
