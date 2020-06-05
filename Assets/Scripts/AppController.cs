@@ -43,7 +43,7 @@ public class AppController : MonoBehaviour
     private Queue<string> cloudAnchorIdQueue = new Queue<string>();
     private bool isQueueReady = false;
     private bool isQueueStarted = false;
-    private int maxWait = 20;
+    private int maxWait = 5;
     private DateTime? startTime;
 
     void Update()
