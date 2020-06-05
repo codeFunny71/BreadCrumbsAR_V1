@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using Google.XR.ARCoreExtensions;
 using Newtonsoft.Json;
@@ -42,6 +43,8 @@ public class AppController : MonoBehaviour
     private Queue<string> cloudAnchorIdQueue = new Queue<string>();
     private bool isQueueReady = false;
     private bool isQueueStarted = false;
+    private int maxWait = 20;
+    private DateTime? startTime;
 
     void Update()
     {
@@ -114,6 +117,7 @@ public class AppController : MonoBehaviour
                 m_CloudAnchorId = cloudAnchorIdQueue.Dequeue();
                 OutputText.text = m_CloudAnchorId;
                 m_CloudAnchor = AnchorManager.ResolveCloudAnchorId(m_CloudAnchorId);
+                startTime = DateTime.Now;
 
                 if (m_CloudAnchor == null)
                 {
@@ -153,6 +157,39 @@ public class AppController : MonoBehaviour
 
                 StartCoroutine(getMessage(m_CloudAnchor.cloudAnchorId, cloudAnchor.GetComponentInChildren<Text>()));
 
+                m_CloudAnchor = null;
+
+                if (cloudAnchorIdQueue.Count <= 0)
+                {
+                    //if there are no more anchors to process, go back to placing anchors
+                    m_AppMode = AppMode.TouchToHostCloudAnchor;
+                }
+                else
+                {
+                    //if there are more anchors to resolve, do that.
+                    m_AppMode = AppMode.ResolveCloudAnchor;
+                }
+            }
+            else if (cloudAnchorState == CloudAnchorState.TaskInProgress)
+            {
+                if (startTime.HasValue && (DateTime.Now - startTime.Value).TotalSeconds >= maxWait)
+                {
+                    m_CloudAnchor = null;
+
+                    if (cloudAnchorIdQueue.Count <= 0)
+                    {
+                        //if there are no more anchors to process, go back to placing anchors
+                        m_AppMode = AppMode.TouchToHostCloudAnchor;
+                    }
+                    else
+                    {
+                        //if there are more anchors to resolve, do that.
+                        m_AppMode = AppMode.ResolveCloudAnchor;
+                    }
+                }
+            }
+            else if (cloudAnchorState == CloudAnchorState.ErrorResolvingCloudIdNotFound)
+            {
                 m_CloudAnchor = null;
 
                 if (cloudAnchorIdQueue.Count <= 0)
